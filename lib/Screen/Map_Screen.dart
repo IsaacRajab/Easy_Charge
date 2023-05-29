@@ -3,9 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'ProfilePage.dart';
-import 'SavedPage.dart';
-import 'TripsPage.dart';
 
 class Map_Screen extends StatefulWidget {
   const Map_Screen({Key? key}) : super(key: key);
@@ -17,19 +14,17 @@ class Map_Screen extends StatefulWidget {
 class _Map_ScreenState extends State<Map_Screen> {
   CameraPosition? _initialCameraPosition;
   late GoogleMapController _googleMapController;
-  bool _locationPermissionGranted=false;
-  BitmapDescriptor markerIcon = BitmapDescriptor.defaultMarker;
+  bool _locationPermissionGranted = false;
   Completer<GoogleMapController> _controllerCompleter = Completer();
   int _selectedIndex = 0;
-  final Map_Screen _mapScreen=Map_Screen();
-  final ProfilePage _profilePage=ProfilePage();
-  final TripsPage _tripsPage =TripsPage();
-  final SavedPage _savedPage=SavedPage();
+  Set<Marker> _markers = {};
+  bool _showAddStationHint = false;
+  bool _showCancelHint=false;
+  Marker? _lastAddedMarker;
 
   @override
   void initState() {
     getCurrentLocation();
-    //addCustomIcon();
     _checkLocationPermission().then((granted) {
       setState(() {
         _locationPermissionGranted = granted;
@@ -41,7 +36,7 @@ class _Map_ScreenState extends State<Map_Screen> {
     super.initState();
   }
 
-  Future <void> getCurrentLocation() async{
+  Future<void> getCurrentLocation() async {
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -51,7 +46,8 @@ class _Map_ScreenState extends State<Map_Screen> {
           builder: (BuildContext context) {
             return AlertDialog(
               title: const Text('Location Permission Denied'),
-              content: const Text('The app needs access to your location to function properly. Please enable location permission in the app settings.'),
+              content: const Text(
+                  'The app needs access to your location to function properly. Please enable location permission in the app settings.'),
               actions: [
                 TextButton(
                   child: const Text('OK'),
@@ -72,8 +68,9 @@ class _Map_ScreenState extends State<Map_Screen> {
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
-            title:  Text('Location Permission Denied Forever'),
-            content:  Text('The app can\'t be used without location permission. Please enable location permission in the app settings to continue.'),
+            title: const Text('Location Permission Denied Forever'),
+            content: const Text(
+                'The app can\'t be used without location permission. Please enable location permission in the app settings to continue.'),
             actions: [
               TextButton(
                 child: const Text('OK'),
@@ -99,6 +96,7 @@ class _Map_ScreenState extends State<Map_Screen> {
       );
     });
   }
+
   Future<bool> _checkLocationPermission() async {
     var status = await Permission.location.status;
     if (status.isGranted) {
@@ -107,6 +105,7 @@ class _Map_ScreenState extends State<Map_Screen> {
       return false;
     }
   }
+
   Future<void> _requestLocationPermission() async {
     var status = await Permission.location.request();
     if (status.isGranted) {
@@ -120,20 +119,6 @@ class _Map_ScreenState extends State<Map_Screen> {
     }
   }
 
-  // void addCustomIcon() {
-  //   BitmapDescriptor.fromAssetImage(
-  //     const ImageConfiguration(size: Size(48, 48)),
-  //     'images/icon1.png',
-  //   ).then(
-  //         (icon) {
-  //       setState(() {
-  //         markerIcon = icon;
-  //       });
-  //     },
-  //   );
-  // }
-
-
   @override
   void dispose() {
     _googleMapController.dispose();
@@ -144,76 +129,146 @@ class _Map_ScreenState extends State<Map_Screen> {
     setState(() {
       _selectedIndex = index;
     });
-
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isMapScreen=_selectedIndex==0;
-    bool showAppBar=isMapScreen;
+    bool isMapScreen = _selectedIndex == 0;
+    bool showAppBar = isMapScreen;
+
     return Scaffold(
-      appBar: showAppBar?AppBar(
-        title: _selectedIndex==0?const Text('Easy Charge'):null,
-      ):null,
+      appBar: showAppBar
+          ? AppBar(
+        title: _selectedIndex == 0 ? const Text('Easy Charge') : null,
+      )
+          : null,
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          Container(
-            child:_initialCameraPosition!=null? GoogleMap(
-              initialCameraPosition: _initialCameraPosition!,
-              myLocationEnabled: false,
-              zoomControlsEnabled: false,
-              onMapCreated: (GoogleMapController controller) {
-                _controllerCompleter.complete(controller);
-                _googleMapController = controller;
-              },
-              mapType: MapType.normal,
-            ) :const Center(child: CircularProgressIndicator()),
+          Stack(
+            children: [
+              Container(
+                child: _initialCameraPosition != null
+                    ? GoogleMap(
+                  initialCameraPosition: _initialCameraPosition!,
+                  myLocationEnabled: false,
+                  zoomControlsEnabled: false,
+                  onMapCreated: (GoogleMapController controller) {
+                    _controllerCompleter.complete(controller);
+                    _googleMapController = controller;
+                  },
+                  mapType: MapType.normal,
+                  markers: _markers,
+                  onTap: (LatLng position) {
+                    _addMarker(position);
+                    setState(() {
+                      _showAddStationHint = true;
+                    });
+                  },
+                )
+                    : const Center(child: CircularProgressIndicator()),
+              ),
+              if (_showAddStationHint)
+                ..._markers.map((marker) {
+                  final position = marker.position;
+                  return Positioned(
+                    top: position.latitude,
+                    left: position.longitude,
+                    child: GestureDetector(
+                      onTap: (){
+                        setState(() {
+                          _showAddStationDialog();
+                        });
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4.0),
+                        ),
+                        child: const Text(
+                          'Add a new station',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+            ],
           ),
-          _tripsPage,
-          _savedPage,
-          _profilePage,
         ],
       ),
-
-      floatingActionButton:isMapScreen? FloatingActionButton(
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.black,
-        onPressed: () async {
-          final GoogleMapController controller = await _controllerCompleter.future;
-          controller.animateCamera(CameraUpdate.newCameraPosition(_initialCameraPosition!));
-        },
-        child: const Icon(Icons.center_focus_strong),
-      ):null,
-      bottomNavigationBar: BottomNavigationBar(
-        type:BottomNavigationBarType.fixed,
-        backgroundColor: Colors.blueAccent,
-        selectedItemColor: Colors.greenAccent,
-        currentIndex: _selectedIndex,
-        onTap: _onTabTapped,
-        items: const [
-          BottomNavigationBarItem(
-
-            icon: Icon(Icons.map_outlined),
-            label: 'Map',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.electric_car_sharp),
-            label: 'Trips',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bookmark_outline_rounded),
-            label: 'Saved',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
-
     );
   }
 
+  void _addMarker(LatLng position) {
+    final MarkerId markerId = MarkerId(position.toString());
+    final Marker marker = Marker(
+      markerId: markerId,
+      position: position,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+    );
+
+    setState(() {
+      _markers.add(marker);
+      _lastAddedMarker = marker; // Assign the last added marker
+    });
+  }
+
+  void _showAddStationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        String stationName = '';
+
+        return AlertDialog(
+          title: const Text('Add a new station'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                onChanged: (value) {
+                  stationName = value;
+                },
+                decoration: const InputDecoration(
+                  labelText: 'Station Name',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                // Remove the last added marker if it exists
+                if (_lastAddedMarker != null) {
+                  _removeMarker(_lastAddedMarker!);
+                  _lastAddedMarker = null;
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Add'),
+              onPressed: () {
+                // Process the entered station name here
+                // You can add the necessary logic to store the station information
+                // For now, let's just print the station name
+                print('New station name: $stationName');
+
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  void _removeMarker(Marker marker) {
+    setState(() {
+      _markers = _markers.where((m) => m != marker).toSet();
+    });
+  }
 }
+
 
