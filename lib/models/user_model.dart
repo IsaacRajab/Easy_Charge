@@ -1,3 +1,5 @@
+
+
 class UserDataModel {
   UserDataModel({
     required this.uId,
@@ -5,6 +7,7 @@ class UserDataModel {
     required this.email,
     required this.token,
     required this.phone,
+    required this.userKind,
   });
 
   late final String uId;
@@ -12,13 +15,17 @@ class UserDataModel {
   late final String email;
   late final String token;
   late final String phone;
+  late final String userKind;
 
-  UserDataModel.fromJson(Map<String, dynamic> json) {
-    uId = json['uId'] ?? '';
-    username = json['username'] ?? '';
-    email = json['email'] ?? '';
-    token = json['token'] ?? '';
-    phone = json['phone'] ?? '';
+  factory UserDataModel.fromJson(Map<String, dynamic>? json) {
+    return UserDataModel(
+      uId: json?['uId'] ?? '',
+      username: json?['username'] ?? '',
+      email: json?['email'] ?? '',
+      token: json?['token'] ?? '',
+      phone: json?['phone'] ?? '',
+      userKind: json?['userKind'] ?? '',
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -28,6 +35,7 @@ class UserDataModel {
       'email': email,
       'token': token,
       'phone': phone,
+      'userKind': userKind,
     };
   }
 }

@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:login/repository/user_data_repository.dart';
 
 import 'constants.dart';
 
@@ -20,10 +21,12 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+ final  UserDataRepository _userRepository = UserDataRepository();
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
   TextEditingController usernameController = TextEditingController();
   TextEditingController emailController = TextEditingController();
   TextEditingController passwordController = TextEditingController();
+  String dropdownValue = 'User';
 
   final TextEditingController phoneController = TextEditingController();
   String initialCountry = 'NG';
@@ -279,12 +282,38 @@ class _RegisterPageState extends State<RegisterPage> {
                             keyboardType: const TextInputType.numberWithOptions(
                                 signed: true, decimal: true),
                             onSaved: (PhoneNumber number) {
-                              print('On Saved: $number');
+                              // print('On Saved: $number');
                             },
                           ),
                         ),
                         const SizedBox(
                           height: 20,
+                        ),
+                        Center(
+                          child: DropdownButton<String>(
+
+
+                            // Step 3.
+                            value: dropdownValue,
+                            // Step 4.
+                            items: <String>['User', 'Station Owner']
+                                .map<DropdownMenuItem<String>>((String value) {
+                              return DropdownMenuItem<String>(
+
+                                value: value,
+                                child: Text(
+                                  value,
+                                  style: const TextStyle(fontSize: 20),
+                                ),
+                              );
+                            }).toList(),
+                            // Step 5.
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                dropdownValue = newValue!;
+                              });
+                            },
+                          ),
                         ),
                         Container(
                           height: 40,
@@ -323,23 +352,32 @@ class _RegisterPageState extends State<RegisterPage> {
                                       email: emailController.text,
                                       username: usernameController.text,
                                       token: passwordController.text,
+                                      userKind: dropdownValue,
                                     );
                                     userConst = userData.user;
-                                    FirebaseFirestore.instance
-                                        .collection('users')
-                                        .doc(userData.user!.uid)
-                                        .set(model.toJson())
-                                        .then((value) {
-                                      setState(() {
-                                        isPressed = false;
+                                    if(dropdownValue=='User') {
+                                      _userRepository.addUser(model).then((value) {
+                                        setState(() {
+                                          isPressed = false;
+                                        });
+                                      }).catchError((error) {
+                                        Fluttertoast.showToast(
+                                          msg: error.toString(),
+                                        );
                                       });
-                                    }).catchError((error) {
-                                      Fluttertoast.showToast(
-                                        msg: error.toString(),
-                                      );
-                                    });
+                                    }else if (dropdownValue=='Station Owner'){
+                                      _userRepository.addStationOwner(model).then((value) {
+                                        setState(() {
+                                          isPressed = false;
+                                        });
+                                      }).catchError((error) {
+                                        Fluttertoast.showToast(
+                                          msg: error.toString(),
+                                        );
+                                      });
 
-                                }).catchError((error) {
+                                    }
+                                    }).catchError((error) {
                                   setState(() {
                                     isPressed = false;
                                   });
@@ -369,6 +407,9 @@ class _RegisterPageState extends State<RegisterPage> {
                         const SizedBox(
                           height: 20,
                         ),
+
+
+
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [

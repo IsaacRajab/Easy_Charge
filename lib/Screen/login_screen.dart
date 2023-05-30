@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:login/Screen/Map_Screen.dart';
+import 'package:login/Screen/Station_Owner_Map.dart';
 import 'package:login/Screen/register_screen.dart';
+import 'package:login/auth/authentication_service.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -187,44 +190,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                       RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ))),
-                              onPressed: () {
-                                if(formKey.currentState!.validate()) {
-                                  setState(() {
-                                    isPressed = true;
-                                  });
-
-                                  FirebaseAuth.instance
-                                      .signInWithEmailAndPassword(
-                                      email: emailController.text,
-                                      password: passwordController.text)
-                                      .then((value) {
-                                    setState(() {
-                                      isPressed = false;
-                                    });
-                                    Fluttertoast.showToast(
-                                      msg: 'Login successful!', // Message to be displayed
-                                      toastLength: Toast.LENGTH_SHORT, // Duration for which the toast should be visible
-                                      gravity: ToastGravity.BOTTOM, // Position of the toast message on the screen
-                                      backgroundColor: Colors.green, // Background color of the toast
-                                      textColor: Colors.white, // Text color of the toast
-                                    );
-
-
-
-
-
-                                  })
-                                      .catchError((error) {
-                                    setState(() {
-                                      isPressed = false;
-                                    });
-
-                                    Fluttertoast.showToast(
-                                      msg: error.toString().split(']').last,
-                                    );
-                                  });
-                                }
+                              onPressed: () async {
+                                await _handleLogin();
                               },
+
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -281,4 +250,48 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ));
   }
+  Future<void> _handleLogin() async {
+    if (formKey.currentState!.validate()) {
+      setState(() {
+        isPressed = true;
+      });
+
+      final authService = AuthenticationService();
+      final userKind = await authService.login(
+        emailController.text,
+        passwordController.text,
+      );
+      print('User kind: $userKind');
+      setState(() {
+        isPressed = false;
+      });
+
+      // Delay the navigation to ensure the BuildContext is available
+      Future.delayed(Duration.zero, () {
+        if (userKind == 'User') {
+          // Navigate to the home page for the user
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const Map_Screen(),
+            ),
+          );
+        } else if (userKind == 'Station Owner') {
+          // Navigate to the home page for the station owner
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const Station_Owner_Map(),
+            ),
+          );
+        } else {
+          // Handle the case when the user is not found in any collection
+          Fluttertoast.showToast(
+            msg: 'Invalid user',
+          );
+        }
+      });
+    }
+  }
+
 }
